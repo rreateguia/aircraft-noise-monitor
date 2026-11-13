@@ -168,8 +168,11 @@ def get_measurements(
     station_id: int | None = None,
     aircraft_id: int | None = None,
     start_date: datetime | None = None,
-    end_date: datetime | None = None
+    end_date: datetime | None = None,
+    min_noise_level: float | None = None
 ):
+    print("Received min_noise_level:", min_noise_level)
+    print("Stored measurements:", measurements)
     result = measurements
 
     if station_id is not None:
@@ -195,7 +198,12 @@ def get_measurements(
             m for m in result
             if m["timestamp"] <= end_date
         ]
-
+    if min_noise_level is not None:
+        result = [
+            m for m in result
+            if m["noise_level_db"] >= min_noise_level
+        ]
+    print("Filtered results:", result)
     return result
 
 
