@@ -36,7 +36,7 @@ aircraft = [
         "aircraft_type": "A320",
         "registration": "D-AIAB",
         "origin": "FRA",
-        "destination": "LIM"
+        "destination": "PEK"
     },
     {
         "id": 2,
