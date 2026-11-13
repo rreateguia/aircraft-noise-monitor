@@ -5,8 +5,36 @@ from pydantic import BaseModel, Field
 
 app = FastAPI(
     title="Aircraft Noise Monitoring API",
-    description="Simulated airport noise monitoring data",
-    version="1.0.0"
+    description="""
+    REST API for a simulated airport noise monitoring system.
+
+    The API provides:
+    - Airport noise monitoring stations
+    - Aircraft information
+    - Noise measurements
+    - Filtering by station, aircraft, date and noise level
+
+    This project uses simulated data for educational purposes.
+    """,
+    version="1.0.0",
+    contact={
+        "name": "Rolando Reategui",
+        "url": "https://github.com/rreateguia"
+    },
+    openapi_tags=[
+        {
+            "name": "Stations",
+            "description": "Operations for airport noise monitoring stations."
+        },
+        {
+            "name": "Aircraft",
+            "description": "Operations for aircraft information."
+        },
+        {
+            "name": "Measurements",
+            "description": "Create and retrieve aircraft noise measurements."
+        }
+    ]
 )
 
 # --------------------------------------------------
@@ -77,12 +105,22 @@ def home():
 # 4. STATIONS
 # --------------------------------------------------
 
-@app.get("/api/stations")
+@app.get(
+    "/api/stations",
+    tags=["Stations"],
+    summary="Get all monitoring stations",
+    description="Returns all registered airport noise monitoring stations."
+    )
 def get_stations():
     return stations
 
 
-@app.get("/api/stations/{station_id}")
+@app.get(
+    "/api/stations/{station_id}",
+    tags=["Stations"],
+    summary="Get station by ID",
+    description="Get one station using its ID"
+    )
 def get_one_station(station_id: int):
     station = next(
         (s for s in stations if s["id"] == station_id),
@@ -98,7 +136,12 @@ def get_one_station(station_id: int):
     return station
 
 
-@app.delete("/api/stations/{station_id}")
+@app.delete(
+    "/api/stations/{station_id}",
+    tags=["Stations"],
+    summary="Delete a monitoring station",
+    description="Delete one station using its ID"
+    )
 def remove_station(station_id: int):
     station = next(
         (s for s in stations if s["id"] == station_id),
@@ -117,7 +160,12 @@ def remove_station(station_id: int):
 # 5. AIRCRAFT
 # --------------------------------------------------
 
-@app.get("/api/aircraft")
+@app.get(
+    "/api/aircraft",
+    tags=["Aircraft"],
+    summary="Get aircraft information",
+    description="Returns all aircraft using its parameters"
+        )
 def get_aircraft(
     flight_number: str | None = None,
     airline: str | None = None,
@@ -146,7 +194,11 @@ def get_aircraft(
     return result
 
 
-@app.get("/api/aircraft/{aircraft_id}")
+@app.get(
+        "/api/aircraft/{aircraft_id}",
+        tags=["Aircraft"],
+        summary="Get aircraft by ID",
+        description="Get aircraft using its ID")
 def get_one_aircraft(aircraft_id: int):
     item = next(
         (a for a in aircraft if a["id"] == aircraft_id),
@@ -176,11 +228,23 @@ def get_measurements(
     result = measurements
 
     if station_id is not None:
+        if not any(s["id"] == station_id for s in stations):
+            raise HTTPException(
+                status_code=404,
+                detail="Station not found"
+            )
+    if station_id is not None:
         result = [
             m for m in result
             if m["station_id"] == station_id
         ]
-
+    
+    if aircraft_id is not None:
+        if not any(a["id"] == aircraft_id for a in aircraft):
+            raise HTTPException(
+                status_code=404,
+                detail="Aircraft not found"
+            )
     if aircraft_id is not None:
         result = [
             m for m in result
