@@ -161,3 +161,92 @@ document.getElementById("reset-button").addEventListener("click", () => {
 // Initial dashboard loading
 getStations();
 getMeasurements();
+
+
+// --------------------------------------------------
+// ADD MONITORING STATION
+// --------------------------------------------------
+
+document.getElementById("station-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const stationData = {
+        name: document.getElementById("station-name").value,
+        latitude: Number(document.getElementById("station-latitude").value),
+        longitude: Number(document.getElementById("station-longitude").value)
+    };
+
+    const message = document.getElementById("station-message");
+
+    try {
+        const response = await fetch(`${API_URL}/stations`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(stationData)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.detail || "Could not create station");
+        }
+
+        message.textContent = `Station "${result.name}" created successfully!`;
+        message.style.color = "green";
+
+        document.getElementById("station-form").reset();
+
+        // Refresh station count
+        getStations();
+
+    } catch (error) {
+        message.textContent = error.message;
+        message.style.color = "red";
+    }
+});
+
+// --------------------------------------------------
+// ADD AIRCRAFT
+// --------------------------------------------------
+
+document.getElementById("aircraft-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const aircraftData = {
+        flight_number: document.getElementById("flight-number").value,
+        airline: document.getElementById("airline").value,
+        aircraft_type: document.getElementById("aircraft-type").value,
+        registration: document.getElementById("registration").value,
+        origin: document.getElementById("origin").value,
+        destination: document.getElementById("destination").value
+    };
+
+    const message = document.getElementById("aircraft-message");
+
+    try {
+        const response = await fetch(`${API_URL}/aircraft`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(aircraftData)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.detail || "Could not register aircraft");
+        }
+
+        message.textContent = `Aircraft "${result.flight_number}" registered successfully!`;
+        message.style.color = "green";
+
+        document.getElementById("aircraft-form").reset();
+
+    } catch (error) {
+        message.textContent = error.message;
+        message.style.color = "red";
+    }
+});

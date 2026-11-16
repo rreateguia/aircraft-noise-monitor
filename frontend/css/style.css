@@ -229,3 +229,61 @@ tbody tr:hover {
         width: 100%;
     }
 }
+
+
+.management-section {
+    margin: 30px 0;
+}
+
+.management-section h2 {
+    margin-bottom: 20px;
+}
+
+.management-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+}
+
+.management-card {
+    background: white;
+    padding: 24px;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.management-card h3 {
+    margin-bottom: 18px;
+}
+
+.management-card form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.management-card input {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+.management-card button {
+    margin-top: 10px;
+    padding: 11px;
+    border: none;
+    border-radius: 5px;
+    background: #1d3557;
+    color: white;
+    cursor: pointer;
+}
+
+.management-card button:hover {
+    background: #294d78;
+}
+
+@media (max-width: 700px) {
+    .management-grid {
+        grid-template-columns: 1fr;
+    }
+}
