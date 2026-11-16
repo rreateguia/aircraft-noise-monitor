@@ -95,6 +95,22 @@ next_measurement_id = 1
 # 2. REQUEST MODEL
 # --------------------------------------------------
 
+
+class StationCreate(BaseModel):
+    name: str
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+
+
+class AircraftCreate(BaseModel):
+    flight_number: str
+    airline: str
+    aircraft_type: str
+    registration: str
+    origin: str
+    destination: str
+
+
 class MeasurementCreate(BaseModel):
     station_id: int
     aircraft_id: int
@@ -124,7 +140,22 @@ def home():
 def get_stations():
     return stations
 
+@app.post(
+    "/api/stations",
+    tags=["Stations"],
+    summary="Create a monitoring station",
+    description="Register a new airport noise monitoring station.",
+    status_code=201
+)
+def add_station(data: StationCreate):
+    new_station = {
+        "id": max((s["id"] for s in stations), default=0) + 1,
+        **data.model_dump()
+    }
 
+    stations.append(new_station)
+
+    return new_station
 @app.get(
     "/api/stations/{station_id}",
     tags=["Stations"],
@@ -203,6 +234,22 @@ def get_aircraft(
 
     return result
 
+@app.post(
+    "/api/aircraft",
+    tags=["Aircraft"],
+    summary="Register a new aircraft",
+    description="Register aircraft information.",
+    status_code=201
+)
+def add_aircraft(data: AircraftCreate):
+    new_aircraft = {
+        "id": max((a["id"] for a in aircraft), default=0) + 1,
+        **data.model_dump()
+    }
+
+    aircraft.append(new_aircraft)
+
+    return new_aircraft
 
 @app.get(
         "/api/aircraft/{aircraft_id}",
