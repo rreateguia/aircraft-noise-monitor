@@ -1,7 +1,8 @@
 
 from datetime import datetime, timezone
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
     title="Aircraft Noise Monitoring API",
@@ -36,7 +37,16 @@ app = FastAPI(
         }
     ]
 )
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://127.0.0.1:5500",
+        "http://localhost:5500"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # --------------------------------------------------
 # 1. DATA
 # --------------------------------------------------
@@ -198,7 +208,8 @@ def get_aircraft(
         "/api/aircraft/{aircraft_id}",
         tags=["Aircraft"],
         summary="Get aircraft by ID",
-        description="Get aircraft using its ID")
+        description="Get aircraft using its ID"
+        )
 def get_one_aircraft(aircraft_id: int):
     item = next(
         (a for a in aircraft if a["id"] == aircraft_id),
@@ -215,13 +226,33 @@ def get_one_aircraft(aircraft_id: int):
 # 6. MEASUREMENTS
 # --------------------------------------------------
 
-@app.get("/api/measurements")
+@app.get(
+        "/api/measurements",
+        tags=["Measurements"],
+        summary="Get and filter measurements",
+        description="Get a measurement using its parameters"   
+        )
 def get_measurements(
-    station_id: int | None = None,
-    aircraft_id: int | None = None,
-    start_date: datetime | None = None,
-    end_date: datetime | None = None,
-    min_noise_level: float | None = None
+    station_id: int | None = Query(
+        default=None,
+        description="Filter by monitoring station ID."
+    ),
+    aircraft_id: int | None = Query(
+        default=None,
+        description="Filter by aircraft ID."
+    ),
+    start_date: datetime | None = Query(
+        default=None,
+        description="Return measurements from this timestamp onwards."
+    ),
+    end_date: datetime | None = Query(
+        default=None,
+        description="Return measurements up to this timestamp."
+    ),
+    min_noise_level: float | None = Query(
+        default=None,
+        description="Minimum noise level in decibels (dB)."
+    )
 ):
     print("Received min_noise_level:", min_noise_level)
     print("Stored measurements:", measurements)
@@ -271,7 +302,13 @@ def get_measurements(
     return result
 
 
-@app.post("/api/measurements", status_code=201)
+@app.post(
+        "/api/measurements", 
+        tags=["Measurements"],
+        summary="Create a noise measurement",
+        description="Create a measurement using an object from class MeasurementCreate",
+        status_code=201
+        )
 def add_measurement(data: MeasurementCreate):
     global next_measurement_id
 

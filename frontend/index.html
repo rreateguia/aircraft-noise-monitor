@@ -1,0 +1,127 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Aircraft Noise Monitoring</title>
+
+    <link rel="stylesheet" href="css/style.css">
+
+    <script src="js/app.js" defer></script>
+</head>
+
+<body>
+
+    <!-- Header -->
+    <header class="header">
+        <div>
+            <h1>Aircraft Noise Monitoring</h1>
+            <p>Airport noise monitoring dashboard</p>
+        </div>
+
+        <div class="status">
+            <span class="status-indicator"></span>
+            <span id="api-status-text">Connecting...</span>
+        </div>
+    </header>
+
+
+    <!-- Main dashboard -->
+    <main class="dashboard">
+
+        <!-- Summary cards -->
+        <section class="summary">
+
+            <div class="card">
+                <h3>Monitoring Stations</h3>
+                <p id="station-count">--</p>
+            </div>
+
+            <div class="card">
+                <h3>Total Measurements</h3>
+                <p id="measurement-count">--</p>
+            </div>
+
+            <div class="card">
+                <h3>Average Noise Level</h3>
+                <p id="average-noise">-- dB</p>
+            </div>
+
+            <div class="card">
+                <h3>Maximum Noise Level</h3>
+                <p id="maximum-noise">-- dB</p>
+            </div>
+
+        </section>
+
+
+        <!-- Filters -->
+        <section class="panel">
+
+            <h2>Measurement Filters</h2>
+
+            <div class="filters">
+
+                <div>
+                    <label for="station-filter">Station ID</label>
+                    <input type="number" id="station-filter"
+                           placeholder="All stations">
+                </div>
+
+                <div>
+                    <label for="aircraft-filter">Aircraft ID</label>
+                    <input type="number" id="aircraft-filter"
+                           placeholder="All aircraft">
+                </div>
+
+                <div>
+                    <label for="min-noise-filter">Minimum noise (dB)</label>
+                    <input type="number" id="min-noise-filter"
+                           placeholder="e.g. 70">
+                </div>
+
+                <button id="filter-button">Apply filters</button>
+
+                <button id="reset-button">Reset</button>
+
+            </div>
+
+        </section>
+
+
+        <!-- Measurements table -->
+        <section class="panel">
+
+            <h2>Noise Measurements</h2>
+
+            <p id="results-message">Loading measurements...</p>
+
+            <div class="table-container">
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Station</th>
+                            <th>Aircraft</th>
+                            <th>Noise Level</th>
+                            <th>Timestamp</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="measurements-table">
+                        <!-- JavaScript will insert measurements here -->
+                    </tbody>
+                </table>
+
+            </div>
+
+        </section>
+
+    </main>
+
+</body>
+</html>
