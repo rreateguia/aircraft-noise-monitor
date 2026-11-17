@@ -11,7 +11,7 @@ const measurementsTable = document.getElementById("measurements-table");
 const resultsMessage = document.getElementById("results-message");
 
 const apiStatus = document.getElementById("api-status-text");
-
+let noiseChart = null;
 // Retrieve measurements from FastAPI
 async function getMeasurements(filters = {}) {
 
@@ -62,7 +62,7 @@ let aircraftNames = {};
 
 // Display measurements and calculate statistics
 function displayMeasurements(measurements) {
-
+    updateNoiseChart(measurements);
     // Total measurements
     measurementCount.textContent = measurements.length;
 
@@ -463,6 +463,107 @@ document.getElementById("measurement-form")
             message.style.color = "red";
         }
     });
+
+
+function updateNoiseChart(measurements) {
+
+    const canvas = document.getElementById("noise-chart");
+
+    // Group measurements by station
+    const stationGroups = {};
+
+    measurements.forEach(measurement => {
+        const stationId = measurement.station_id;
+
+        if (!stationGroups[stationId]) {
+            stationGroups[stationId] = [];
+        }
+
+        stationGroups[stationId].push(measurement);
+    });
+
+    // Get all unique timestamps and sort them chronologically
+    const timestamps = [
+        ...new Set(
+            measurements.map(m => new Date(m.timestamp).getTime())
+        )
+    ].sort((a, b) => a - b);
+
+    // Convert timestamps into readable labels
+    const labels = timestamps.map(timestamp =>
+        new Date(timestamp).toLocaleString()
+    );
+
+    const colors = [
+        "rgb(54, 162, 235)",
+        "rgb(255, 99, 132)",
+        "rgb(75, 192, 192)",
+        "rgb(255, 159, 64)",
+        "rgb(153, 102, 255)"
+    ];
+
+    // Create one dataset per station
+    const datasets = Object.entries(stationGroups).map(
+        ([stationId, stationMeasurements], index) => {
+
+            const valuesByTimestamp = new Map();
+
+            stationMeasurements.forEach(measurement => {
+                const timestamp = new Date(
+                    measurement.timestamp
+                ).getTime();
+
+                valuesByTimestamp.set(
+                    timestamp,
+                    measurement.noise_level_db
+                );
+            });
+
+            return {
+                label: stationNames[stationId] || `Station ${stationId}`,
+                data: timestamps.map(timestamp =>
+                    valuesByTimestamp.get(timestamp) ?? null
+                ),
+                borderColor: colors[index % colors.length],
+                backgroundColor: colors[index % colors.length],
+                borderWidth: 2,
+                tension: 0.3,
+                spanGaps: true
+            };
+        }
+    );
+
+    if (noiseChart) {
+        noiseChart.destroy();
+    }
+
+    noiseChart = new Chart(canvas, {
+        type: "line",
+        data: {
+            labels: labels,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: "Measurement Time"
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: "Noise Level (dB)"
+                    },
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
 
 
 // Initialize measurement form
