@@ -105,6 +105,49 @@
             </div>
         </section>
 
+        
+        <!-- REGISTERED STATIONS -->
+        <section class="data-section">
+            <h2>Monitoring Stations</h2>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Latitude</th>
+                            <th>Longitude</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stations-table">
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- REGISTERED AIRCRAFT -->
+        <section class="data-section">
+            <h2>Registered Aircraft</h2>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Flight</th>
+                            <th>Airline</th>
+                            <th>Type</th>
+                            <th>Registration</th>
+                            <th>Origin</th>
+                            <th>Destination</th>
+                        </tr>
+                    </thead>
+                    <tbody id="aircraft-table">
+                    </tbody>
+                </table>
+            </div>
+        </section>
 
         <!-- Filters -->
         <section class="panel">
@@ -139,7 +182,47 @@
 
         </section>
 
+        <section class="management-section">
+            <h2>Add Noise Measurement</h2>
 
+            <div class="management-card">
+                <form id="measurement-form">
+
+                    <label for="measurement-station">Monitoring Station</label>
+                    <select id="measurement-station" required>
+                        <option value="">Loading stations...</option>
+                    </select>
+
+                    <label for="measurement-aircraft">Aircraft</label>
+                    <select id="measurement-aircraft" required>
+                        <option value="">Loading aircraft...</option>
+                    </select>
+
+                    <label for="noise-level">Noise Level (dB)</label>
+                    <input
+                        type="number"
+                        id="noise-level"
+                        min="0.01"
+                        max="200"
+                        step="0.01"
+                        placeholder="e.g. 72.5"
+                        required
+                    >
+
+                    <label for="measurement-timestamp">Date and Time</label>
+                    <input
+                        type="datetime-local"
+                        id="measurement-timestamp"
+                        required
+                    >
+
+                    <button type="submit">Save Measurement</button>
+
+                    <p id="measurement-message"></p>
+
+                </form>
+            </div>
+        </section>
         <!-- Measurements table -->
         <section class="panel">
 

@@ -55,26 +55,10 @@ async function getMeasurements(filters = {}) {
 }
 
 
-// Retrieve monitoring stations
-async function getStations() {
 
-    try {
-        const response = await fetch(`${API_URL}/stations`);
 
-        if (!response.ok) {
-            throw new Error(`HTTP error: ${response.status}`);
-        }
-
-        const stations = await response.json();
-
-        stationCount.textContent = stations.length;
-
-    } catch (error) {
-        console.error("Error retrieving stations:", error);
-        stationCount.textContent = "--";
-    }
-}
-
+let stationNames = {};
+let aircraftNames = {};
 
 // Display measurements and calculate statistics
 function displayMeasurements(measurements) {
@@ -117,8 +101,8 @@ function displayMeasurements(measurements) {
 
         const values = [
             measurement.id,
-            measurement.station_id,
-            measurement.aircraft_id,
+            stationNames[measurement.station_id] || `Station ${measurement.station_id}`,
+            aircraftNames[measurement.aircraft_id] || `Aircraft ${measurement.aircraft_id}`,
             `${measurement.noise_level_db} dB`,
             new Date(measurement.timestamp).toLocaleString()
         ];
@@ -158,9 +142,7 @@ document.getElementById("reset-button").addEventListener("click", () => {
 });
 
 
-// Initial dashboard loading
-getStations();
-getMeasurements();
+
 
 
 // --------------------------------------------------
@@ -200,6 +182,8 @@ document.getElementById("station-form").addEventListener("submit", async (event)
 
         // Refresh station count
         getStations();
+        // Refresh station dropdown in measurement form
+        loadMeasurementOptions();
 
     } catch (error) {
         message.textContent = error.message;
@@ -244,9 +228,247 @@ document.getElementById("aircraft-form").addEventListener("submit", async (event
         message.style.color = "green";
 
         document.getElementById("aircraft-form").reset();
+        getAircraft();
+
+        // Refresh aircraft dropdown in measurement form
+        loadMeasurementOptions();
 
     } catch (error) {
         message.textContent = error.message;
         message.style.color = "red";
     }
 });
+// Retrieve monitoring stations
+async function getStations() {
+    try {
+        const response = await fetch(`${API_URL}/stations`);
+
+        if (!response.ok) {
+            throw new Error("Could not retrieve stations");
+        }
+
+        const stations = await response.json();
+        stationNames = {};
+
+        stations.forEach(station => {
+            stationNames[station.id] = station.name;
+        });
+
+        // Update dashboard counter
+        stationCount.textContent = stations.length;
+
+        // Populate stations table
+        const stationsTable = document.getElementById("stations-table");
+        stationsTable.innerHTML = "";
+
+        stations.forEach(station => {
+            const row = document.createElement("tr");
+
+            const values = [
+                station.id,
+                station.name,
+                station.latitude,
+                station.longitude
+            ];
+
+            values.forEach(value => {
+                const cell = document.createElement("td");
+                cell.textContent = value;
+                row.appendChild(cell);
+            });
+
+            stationsTable.appendChild(row);
+        });
+
+    } catch (error) {
+        console.error("Error retrieving stations:", error);
+        stationCount.textContent = "--";
+    }
+}
+
+// --------------------------------------------------
+// RETRIEVE AND DISPLAY AIRCRAFT
+// --------------------------------------------------
+
+async function getAircraft() {
+    try {
+        const response = await fetch(`${API_URL}/aircraft`);
+
+        if (!response.ok) {
+            throw new Error("Could not retrieve aircraft");
+        }
+
+        const aircraft = await response.json();
+        aircraftNames = {};
+
+        aircraft.forEach(item => {
+            aircraftNames[item.id] = item.flight_number;
+        });
+        const aircraftTable = document.getElementById("aircraft-table");
+        aircraftTable.innerHTML = "";
+
+        aircraft.forEach(item => {
+            const row = document.createElement("tr");
+
+            const values = [
+                item.id,
+                item.flight_number,
+                item.airline,
+                item.aircraft_type,
+                item.registration,
+                item.origin,
+                item.destination
+            ];
+
+            values.forEach(value => {
+                const cell = document.createElement("td");
+                cell.textContent = value;
+                row.appendChild(cell);
+            });
+
+            aircraftTable.appendChild(row);
+        });
+
+    } catch (error) {
+        console.error("Error retrieving aircraft:", error);
+    }
+}
+// --------------------------------------------------
+// MEASUREMENT FORM
+// --------------------------------------------------
+
+// Set current local date and time as the default
+function setCurrentDateTime() {
+    const now = new Date();
+
+    const localDateTime =
+        now.getFullYear() + "-" +
+        String(now.getMonth() + 1).padStart(2, "0") + "-" +
+        String(now.getDate()).padStart(2, "0") + "T" +
+        String(now.getHours()).padStart(2, "0") + ":" +
+        String(now.getMinutes()).padStart(2, "0");
+
+    document.getElementById("measurement-timestamp").value =
+        localDateTime;
+}
+
+
+// Load stations and aircraft into the dropdowns
+async function loadMeasurementOptions() {
+    try {
+        const [stationResponse, aircraftResponse] = await Promise.all([
+            fetch(`${API_URL}/stations`),
+            fetch(`${API_URL}/aircraft`)
+        ]);
+
+        if (!stationResponse.ok || !aircraftResponse.ok) {
+            throw new Error("Could not load stations or aircraft");
+        }
+
+        const stations = await stationResponse.json();
+        const aircraft = await aircraftResponse.json();
+
+        const stationSelect =
+            document.getElementById("measurement-station");
+
+        const aircraftSelect =
+            document.getElementById("measurement-aircraft");
+
+        stationSelect.innerHTML =
+            '<option value="">Select a station</option>';
+
+        aircraftSelect.innerHTML =
+            '<option value="">Select an aircraft</option>';
+
+        stations.forEach(station => {
+            const option = document.createElement("option");
+
+            option.value = station.id;
+            option.textContent = `${station.name} (ID: ${station.id})`;
+
+            stationSelect.appendChild(option);
+        });
+
+        aircraft.forEach(item => {
+            const option = document.createElement("option");
+
+            option.value = item.id;
+            option.textContent =
+                `${item.flight_number} - ${item.airline}`;
+
+            aircraftSelect.appendChild(option);
+        });
+
+    } catch (error) {
+        console.error("Error loading measurement options:", error);
+    }
+}
+
+
+// Submit a new measurement
+document.getElementById("measurement-form")
+    .addEventListener("submit", async (event) => {
+
+        event.preventDefault();
+
+        const message =
+            document.getElementById("measurement-message");
+
+        const timestampInput =
+            document.getElementById("measurement-timestamp").value;
+
+        const measurementData = {
+            station_id: Number(
+                document.getElementById("measurement-station").value
+            ),
+            aircraft_id: Number(
+                document.getElementById("measurement-aircraft").value
+            ),
+            noise_level_db: Number(
+                document.getElementById("noise-level").value
+            ),
+            timestamp: new Date(timestampInput).toISOString()
+        };
+
+        try {
+            const response = await fetch(`${API_URL}/measurements`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(measurementData)
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(
+                    result.detail || "Could not save measurement"
+                );
+            }
+
+            message.textContent =
+                `Measurement #${result.id} saved successfully!`;
+
+            message.style.color = "green";
+
+            document.getElementById("measurement-form").reset();
+
+            setCurrentDateTime();
+
+            getMeasurements();
+
+        } catch (error) {
+            message.textContent = error.message;
+            message.style.color = "red";
+        }
+    });
+
+
+// Initialize measurement form
+setCurrentDateTime();
+loadMeasurementOptions();
+// Initial dashboard loading
+getStations();
+getAircraft();
+getMeasurements();
