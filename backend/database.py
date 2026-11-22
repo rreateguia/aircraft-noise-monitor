@@ -1,6 +1,6 @@
 
 from pathlib import Path
-
+import os
 from sqlmodel import SQLModel, Session, create_engine
 
 # Import models so SQLModel registers all database tables
@@ -8,7 +8,11 @@ from models import Station, Aircraft, Measurement
 
 # Store the database alongside this Python file
 BASE_DIR = Path(__file__).resolve().parent
-sqlite_file_name = BASE_DIR / "aircraft_noise.db"
+
+DATABASE_DIR = Path(os.getenv("DATABASE_DIR", BASE_DIR))
+DATABASE_DIR.mkdir(parents=True, exist_ok=True)
+
+sqlite_file_name = DATABASE_DIR / "aircraft_noise.db"
 sqlite_url = f"sqlite:///{sqlite_file_name}"
 
 connect_args = {"check_same_thread": False}

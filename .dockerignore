@@ -1,0 +1,21 @@
+
+# Python
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Git
+.git/
+.gitignore
+
+# IDE and system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
