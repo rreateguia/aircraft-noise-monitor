@@ -1,5 +1,6 @@
 services:
   backend:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: Dockerfile
@@ -14,6 +15,7 @@ services:
       - aircraft_noise_data:/app/data
 
   frontend:
+    
     build:
       context: .
       dockerfile: frontend/Dockerfile
