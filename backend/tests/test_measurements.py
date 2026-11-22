@@ -1,15 +1,19 @@
 
+
 from datetime import datetime, timezone
 
 import pytest
 import main
+
 from fastapi.testclient import TestClient
+from sqlmodel import SQLModel, Session, create_engine
+from sqlalchemy.pool import StaticPool
 
-client = TestClient(main.app)
+from database import get_session
+from models import Station, Aircraft, Measurement
 
-
-def test_home():
-    response = client.get("/")
+def test_home(client_with_measurements):
+    response = client_with_measurements.get("/")
 
     assert response.status_code == 200
     assert response.json() == {
@@ -17,50 +21,107 @@ def test_home():
     }
 
 
-def test_get_stations():
-    response = client.get("/api/stations")
+def test_get_stations(client_with_measurements):
+    response = client_with_measurements.get("/api/stations")
 
     assert response.status_code == 200
     assert isinstance(response.json(), list)
-
-
 @pytest.fixture
-def client_with_measurements(monkeypatch):
-    test_data = [
-        {
-            "id": 1,
-            "station_id": 1,
-            "aircraft_id": 1,
-            "noise_level_db": 52.45,
-            "timestamp": datetime(2026, 11, 10, 8, 15, tzinfo=timezone.utc)
-        },
-        {
-            "id": 2,
-            "station_id": 1,
-            "aircraft_id": 2,
-            "noise_level_db": 74.80,
-            "timestamp": datetime(2026, 11, 11, 9, 45, tzinfo=timezone.utc)
-        },
-        {
-            "id": 3,
-            "station_id": 2,
-            "aircraft_id": 1,
-            "noise_level_db": 88.40,
-            "timestamp": datetime(2026, 11, 12, 18, 45, tzinfo=timezone.utc)
-        },
-        {
-            "id": 4,
-            "station_id": 2,
-            "aircraft_id": 2,
-            "noise_level_db": 63.90,
-            "timestamp": datetime(2026, 11, 13, 6, 50, tzinfo=timezone.utc)
-        }
-    ]
+def client_with_measurements():
+    # Create an isolated in-memory SQLite database
+    test_engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
 
-    monkeypatch.setattr(main, "measurements", test_data)
+    SQLModel.metadata.create_all(test_engine)
 
-    return TestClient(main.app)
+    # Insert test stations, aircraft, and measurements
+    with Session(test_engine) as session:
+        session.add_all([
+            Station(
+                id=1,
+                name="Test Station North",
+                latitude=50.05,
+                longitude=8.55,
+            ),
+            Station(
+                id=2,
+                name="Test Station South",
+                latitude=49.98,
+                longitude=8.62,
+            ),
+            Aircraft(
+                id=1,
+                flight_number="LH123",
+                airline="Lufthansa",
+                aircraft_type="A320",
+                registration="D-AIAB",
+                origin="FRA",
+                destination="PEK",
+            ),
+            Aircraft(
+                id=2,
+                flight_number="BA456",
+                airline="British Airways",
+                aircraft_type="B787",
+                registration="G-ZBKA",
+                origin="LHR",
+                destination="FRA",
+            ),
+        ])
 
+        session.add_all([
+            Measurement(
+                id=1,
+                station_id=1,
+                aircraft_id=1,
+                noise_level_db=52.45,
+                timestamp=datetime(2026, 11, 10, 8, 15, tzinfo=timezone.utc),
+            ),
+            Measurement(
+                id=2,
+                station_id=1,
+                aircraft_id=2,
+                noise_level_db=74.80,
+                timestamp=datetime(2026, 11, 11, 9, 45, tzinfo=timezone.utc),
+            ),
+            Measurement(
+                id=3,
+                station_id=2,
+                aircraft_id=1,
+                noise_level_db=88.40,
+                timestamp=datetime(2026, 11, 12, 18, 45, tzinfo=timezone.utc),
+            ),
+            Measurement(
+                id=4,
+                station_id=2,
+                aircraft_id=2,
+                noise_level_db=63.90,
+                timestamp=datetime(2026, 11, 13, 6, 50, tzinfo=timezone.utc),
+            ),
+        ])
+
+        session.commit()
+
+    # Override the application's database dependency
+    def get_test_session():
+        with Session(test_engine) as session:
+            yield session
+
+    main.app.dependency_overrides[get_session] = get_test_session
+
+    # Do not use the TestClient context manager here:
+    # that would trigger the application's production database lifespan.
+    test_client = TestClient(main.app)
+
+    yield test_client
+
+    # Clean up after each test
+    test_client.close()
+    main.app.dependency_overrides.clear()
+    test_engine.dispose()
 
 def test_get_all_measurements(client_with_measurements):
     response = client_with_measurements.get("/api/measurements")

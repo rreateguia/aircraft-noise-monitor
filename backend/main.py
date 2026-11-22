@@ -1,8 +1,76 @@
 
-from datetime import datetime, timezone
-from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel, Field
+from contextlib import asynccontextmanager
+from datetime import datetime
+
+from fastapi import FastAPI, HTTPException, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+
+from sqlmodel import Session, select
+
+from database import engine, create_db_and_tables, get_session
+from models import Station, Aircraft, Measurement
+
+
+# --------------------------------------------------
+# 1. DATABASE INITIALIZATION
+# --------------------------------------------------
+
+def initialize_database():
+    create_db_and_tables()
+
+    with Session(engine) as session:
+
+        # Seed stations if table is empty
+        if not session.exec(select(Station)).first():
+
+            session.add_all([
+                Station(
+                    name="Station North",
+                    latitude=50.05,
+                    longitude=8.55
+                ),
+                Station(
+                    name="Station South",
+                    latitude=49.98,
+                    longitude=8.62
+                )
+            ])
+
+        # Seed aircraft if table is empty
+        if not session.exec(select(Aircraft)).first():
+
+            session.add_all([
+                Aircraft(
+                    flight_number="LH123",
+                    airline="Lufthansa",
+                    aircraft_type="A320",
+                    registration="D-AIAB",
+                    origin="FRA",
+                    destination="PEK"
+                ),
+                Aircraft(
+                    flight_number="BA456",
+                    airline="British Airways",
+                    aircraft_type="B787",
+                    registration="G-ZBKA",
+                    origin="LHR",
+                    destination="FRA"
+                )
+            ])
+
+        session.commit()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    initialize_database()
+    yield
+
+
+# --------------------------------------------------
+# 2. FASTAPI APPLICATION
+# --------------------------------------------------
 
 app = FastAPI(
     title="Aircraft Noise Monitoring API",
@@ -35,8 +103,11 @@ app = FastAPI(
             "name": "Measurements",
             "description": "Create and retrieve aircraft noise measurements."
         }
-    ]
+    ],
+    lifespan=lifespan
 )
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -47,54 +118,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# --------------------------------------------------
-# 1. DATA
-# --------------------------------------------------
-
-stations = [
-    {
-        "id": 1,
-        "name": "Station North",
-        "latitude": 50.05,
-        "longitude": 8.55
-    },
-    {
-        "id": 2,
-        "name": "Station South",
-        "latitude": 49.98,
-        "longitude": 8.62
-    }
-]
-
-aircraft = [
-    {
-        "id": 1,
-        "flight_number": "LH123",
-        "airline": "Lufthansa",
-        "aircraft_type": "A320",
-        "registration": "D-AIAB",
-        "origin": "FRA",
-        "destination": "PEK"
-    },
-    {
-        "id": 2,
-        "flight_number": "BA456",
-        "airline": "British Airways",
-        "aircraft_type": "B787",
-        "registration": "G-ZBKA",
-        "origin": "LHR",
-        "destination": "FRA"
-    }
-]
-
-measurements = []
-next_measurement_id = 1
 
 
 # --------------------------------------------------
-# 2. REQUEST MODEL
+# 3. REQUEST MODELS
 # --------------------------------------------------
-
 
 class StationCreate(BaseModel):
     name: str
@@ -119,7 +147,7 @@ class MeasurementCreate(BaseModel):
 
 
 # --------------------------------------------------
-# 3. HOME
+# 4. HOME
 # --------------------------------------------------
 
 @app.get("/")
@@ -128,7 +156,7 @@ def home():
 
 
 # --------------------------------------------------
-# 4. STATIONS
+# 5. STATIONS
 # --------------------------------------------------
 
 @app.get(
@@ -136,9 +164,13 @@ def home():
     tags=["Stations"],
     summary="Get all monitoring stations",
     description="Returns all registered airport noise monitoring stations."
-    )
-def get_stations():
-    return stations
+)
+def get_stations(session: Session = Depends(get_session)):
+
+    statement = select(Station)
+
+    return session.exec(statement).all()
+
 
 @app.post(
     "/api/stations",
@@ -147,26 +179,32 @@ def get_stations():
     description="Register a new airport noise monitoring station.",
     status_code=201
 )
-def add_station(data: StationCreate):
-    new_station = {
-        "id": max((s["id"] for s in stations), default=0) + 1,
-        **data.model_dump()
-    }
+def add_station(
+    data: StationCreate,
+    session: Session = Depends(get_session)
+):
 
-    stations.append(new_station)
+    new_station = Station(**data.model_dump())
+
+    session.add(new_station)
+    session.commit()
+    session.refresh(new_station)
 
     return new_station
+
+
 @app.get(
     "/api/stations/{station_id}",
     tags=["Stations"],
     summary="Get station by ID",
-    description="Get one station using its ID"
-    )
-def get_one_station(station_id: int):
-    station = next(
-        (s for s in stations if s["id"] == station_id),
-        None
-    )
+    description="Get one station using its ID."
+)
+def get_one_station(
+    station_id: int,
+    session: Session = Depends(get_session)
+):
+
+    station = session.get(Station, station_id)
 
     if station is None:
         raise HTTPException(
@@ -181,58 +219,77 @@ def get_one_station(station_id: int):
     "/api/stations/{station_id}",
     tags=["Stations"],
     summary="Delete a monitoring station",
-    description="Delete one station using its ID"
-    )
-def remove_station(station_id: int):
-    station = next(
-        (s for s in stations if s["id"] == station_id),
-        None
-    )
+    description="Delete one station using its ID."
+)
+def remove_station(
+    station_id: int,
+    session: Session = Depends(get_session)
+):
+
+    station = session.get(Station, station_id)
 
     if station is None:
-        raise HTTPException(status_code=404, detail="Station not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Station not found"
+        )
 
-    stations.remove(station)
+    # Prevent deleting a station that has measurements
+    statement = select(Measurement).where(
+        Measurement.station_id == station_id
+    )
 
-    return {"message": "Station deleted", "station_id": station_id}
+    if session.exec(statement).first():
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot delete station with existing measurements"
+        )
+
+    session.delete(station)
+    session.commit()
+
+    return {
+        "message": "Station deleted",
+        "station_id": station_id
+    }
 
 
 # --------------------------------------------------
-# 5. AIRCRAFT
+# 6. AIRCRAFT
 # --------------------------------------------------
 
 @app.get(
     "/api/aircraft",
     tags=["Aircraft"],
     summary="Get aircraft information",
-    description="Returns all aircraft using its parameters"
-        )
+    description="Returns aircraft information with optional filters."
+)
 def get_aircraft(
     flight_number: str | None = None,
     airline: str | None = None,
-    aircraft_type: str | None = None
+    aircraft_type: str | None = None,
+    session: Session = Depends(get_session)
 ):
-    result = aircraft
+
+    statement = select(Aircraft)
 
     if flight_number:
-        result = [
-            a for a in result
-            if a["flight_number"].lower() == flight_number.lower()
-        ]
+        statement = statement.where(
+            Aircraft.flight_number.ilike(flight_number)
+        )
 
     if airline:
-        result = [
-            a for a in result
-            if a["airline"].lower() == airline.lower()
-        ]
+        statement = statement.where(
+            Aircraft.airline.ilike(airline)
+        )
 
     if aircraft_type:
-        result = [
-            a for a in result
-            if a["aircraft_type"].lower() == aircraft_type.lower()
-        ]
+        statement = statement.where(
+            Aircraft.aircraft_type.ilike(aircraft_type)
+        )
 
-    return result
+    return session.exec(statement).all()
+
 
 @app.post(
     "/api/aircraft",
@@ -241,44 +298,52 @@ def get_aircraft(
     description="Register aircraft information.",
     status_code=201
 )
-def add_aircraft(data: AircraftCreate):
-    new_aircraft = {
-        "id": max((a["id"] for a in aircraft), default=0) + 1,
-        **data.model_dump()
-    }
+def add_aircraft(
+    data: AircraftCreate,
+    session: Session = Depends(get_session)
+):
 
-    aircraft.append(new_aircraft)
+    new_aircraft = Aircraft(**data.model_dump())
+
+    session.add(new_aircraft)
+    session.commit()
+    session.refresh(new_aircraft)
 
     return new_aircraft
 
+
 @app.get(
-        "/api/aircraft/{aircraft_id}",
-        tags=["Aircraft"],
-        summary="Get aircraft by ID",
-        description="Get aircraft using its ID"
-        )
-def get_one_aircraft(aircraft_id: int):
-    item = next(
-        (a for a in aircraft if a["id"] == aircraft_id),
-        None
-    )
+    "/api/aircraft/{aircraft_id}",
+    tags=["Aircraft"],
+    summary="Get aircraft by ID",
+    description="Get aircraft using its ID."
+)
+def get_one_aircraft(
+    aircraft_id: int,
+    session: Session = Depends(get_session)
+):
+
+    item = session.get(Aircraft, aircraft_id)
 
     if item is None:
-        raise HTTPException(status_code=404, detail="Aircraft not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Aircraft not found"
+        )
 
     return item
 
 
 # --------------------------------------------------
-# 6. MEASUREMENTS
+# 7. MEASUREMENTS
 # --------------------------------------------------
 
 @app.get(
-        "/api/measurements",
-        tags=["Measurements"],
-        summary="Get and filter measurements",
-        description="Get a measurement using its parameters"   
-        )
+    "/api/measurements",
+    tags=["Measurements"],
+    summary="Get and filter measurements",
+    description="Get measurements using optional filters."
+)
 def get_measurements(
     station_id: int | None = Query(
         default=None,
@@ -299,80 +364,88 @@ def get_measurements(
     min_noise_level: float | None = Query(
         default=None,
         description="Minimum noise level in decibels (dB)."
-    )
+    ),
+    session: Session = Depends(get_session)
 ):
-    print("Received min_noise_level:", min_noise_level)
-    print("Stored measurements:", measurements)
-    result = measurements
 
+    statement = select(Measurement)
+
+    # Validate station
     if station_id is not None:
-        if not any(s["id"] == station_id for s in stations):
+
+        if session.get(Station, station_id) is None:
             raise HTTPException(
                 status_code=404,
                 detail="Station not found"
             )
-    if station_id is not None:
-        result = [
-            m for m in result
-            if m["station_id"] == station_id
-        ]
-    
+
+        statement = statement.where(
+            Measurement.station_id == station_id
+        )
+
+    # Validate aircraft
     if aircraft_id is not None:
-        if not any(a["id"] == aircraft_id for a in aircraft):
+
+        if session.get(Aircraft, aircraft_id) is None:
             raise HTTPException(
                 status_code=404,
                 detail="Aircraft not found"
             )
-    if aircraft_id is not None:
-        result = [
-            m for m in result
-            if m["aircraft_id"] == aircraft_id
-        ]
 
+        statement = statement.where(
+            Measurement.aircraft_id == aircraft_id
+        )
+
+    # Apply date filters
     if start_date is not None:
-        result = [
-            m for m in result
-            if m["timestamp"] >= start_date
-        ]
+        statement = statement.where(
+            Measurement.timestamp >= start_date
+        )
 
     if end_date is not None:
-        result = [
-            m for m in result
-            if m["timestamp"] <= end_date
-        ]
+        statement = statement.where(
+            Measurement.timestamp <= end_date
+        )
+
+    # Apply noise level filter
     if min_noise_level is not None:
-        result = [
-            m for m in result
-            if m["noise_level_db"] >= min_noise_level
-        ]
-    print("Filtered results:", result)
-    return result
+        statement = statement.where(
+            Measurement.noise_level_db >= min_noise_level
+        )
+
+    return session.exec(statement).all()
 
 
 @app.post(
-        "/api/measurements", 
-        tags=["Measurements"],
-        summary="Create a noise measurement",
-        description="Create a measurement using an object from class MeasurementCreate",
-        status_code=201
-        )
-def add_measurement(data: MeasurementCreate):
-    global next_measurement_id
+    "/api/measurements",
+    tags=["Measurements"],
+    summary="Create a noise measurement",
+    description="Create a new aircraft noise measurement.",
+    status_code=201
+)
+def add_measurement(
+    data: MeasurementCreate,
+    session: Session = Depends(get_session)
+):
 
     # Validate station
-    if not any(s["id"] == data.station_id for s in stations):
-        raise HTTPException(status_code=404, detail="Station not found")
+    if session.get(Station, data.station_id) is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Station not found"
+        )
 
     # Validate aircraft
-    if not any(a["id"] == data.aircraft_id for a in aircraft):
-        raise HTTPException(status_code=404, detail="Aircraft not found")
+    if session.get(Aircraft, data.aircraft_id) is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Aircraft not found"
+        )
 
-    new_measurement = {
-        "id": next_measurement_id,
-        **data.model_dump()
-    }
+    new_measurement = Measurement(**data.model_dump())
 
-    measurements.append(new_measurement)
-    next_measurement_id += 1
+    session.add(new_measurement)
+    session.commit()
+    session.refresh(new_measurement)
 
     return new_measurement
